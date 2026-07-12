@@ -7,11 +7,14 @@ import SmartDay from "@/components/DayAgenda";
 import ChatInput from "@/components/ChatInput";
 import HabitsView from "@/components/HabitsView";
 import StatsView from "@/components/StatsView";
+import FocusMode from "@/components/FocusMode";
+import VoiceNotes from "@/components/VoiceNotes";
+import Retrospective from "@/components/Retrospective";
 import Header from "@/components/Header";
 import { useUserData } from "@/hooks/useUserData";
 import { useReminders } from "@/hooks/useReminders";
 import { sounds } from "@/lib/sounds";
-import { Habit, UserStats, AgendaItem } from "@/types";
+import { Habit, UserStats, VoiceNote } from "@/types";
 
 const DEFAULT_STATS: UserStats = {
   totalTasksCompleted: 0,
@@ -28,9 +31,12 @@ export default function Home() {
   const { tasks, agenda, isLoading, updateTasks, updateAgenda } = useUserData();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [stats, setStats] = useState<UserStats>(DEFAULT_STATS);
-  const [activeTab, setActiveTab] = useState<"tasks" | "habits" | "mi-dia" | "stats" | "chat">("tasks");
+  const [activeTab, setActiveTab] = useState<"tasks" | "habits" | "mi-dia" | "stats" | "notes" | "chat">("tasks");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOrganizing, setIsOrganizing] = useState(false);
+  const [showFocus, setShowFocus] = useState(false);
+  const [showRetro, setShowRetro] = useState(false);
+  const [notes, setNotes] = useState<VoiceNote[]>([]);
   useReminders(tasks, agenda);
 
   // Load habits and stats from localStorage
@@ -48,6 +54,16 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("rememberme-stats", JSON.stringify(stats));
   }, [stats]);
+
+  // Load notes
+  useEffect(() => {
+    const savedNotes = localStorage.getItem("rememberme-notes");
+    if (savedNotes) setNotes(JSON.parse(savedNotes));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("rememberme-notes", JSON.stringify(notes));
+  }, [notes]);
 
   const addPoints = useCallback((points: number) => {
     setStats((prev) => ({ ...prev, points: prev.points + points }));
@@ -153,6 +169,37 @@ export default function Home() {
   const addHabit = (habit: Habit) => { setHabits((prev) => [...prev, habit]); };
   const deleteHabit = (id: string) => { sounds.delete(); setHabits((prev) => prev.filter((h) => h.id !== id)); };
 
+  // Voice Notes
+  const addNote = (transcript: string) => {
+    const note: VoiceNote = {
+      id: `note-${Date.now()}`,
+      transcript,
+      createdAt: new Date().toISOString(),
+    };
+    sounds.success();
+    setNotes((prev) => [note, ...prev]);
+  };
+
+  const deleteNote = (id: string) => {
+    sounds.delete();
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  // Focus mode complete
+  const handleFocusComplete = (taskId: string) => {
+    addPoints(5);
+    updateWeeklyStats();
+    setStats((s) => ({ ...s, totalTasksCompleted: s.totalTasksCompleted + 1 }));
+    updateTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, completed: true } : t)));
+  };
+
+  // Retrospective reschedule
+  const handleReschedule = (taskIds: string[]) => {
+    // Keep the tasks as pending (they're already not completed)
+    // In the future, could move deadline to tomorrow
+    sounds.success();
+  };
+
   // TTS
   const speakDaySummary = () => {
     if (!("speechSynthesis" in window)) return;
@@ -182,6 +229,7 @@ export default function Home() {
     { key: "tasks" as const, label: "Tareas" },
     { key: "mi-dia" as const, label: "Mi Día" },
     { key: "habits" as const, label: "Hábitos" },
+    { key: "notes" as const, label: "Notas" },
     { key: "stats" as const, label: "Stats" },
     { key: "chat" as const, label: "Chat" },
   ];
@@ -230,20 +278,50 @@ export default function Home() {
         {activeTab === "stats" && (
           <StatsView stats={stats} tasks={tasks} habits={habits} />
         )}
+        {activeTab === "notes" && (
+          <VoiceNotes notes={notes} onAddNote={addNote} onDeleteNote={deleteNote} />
+        )}
         {activeTab === "chat" && <ChatInput onSubmit={handleTextSubmit} isProcessing={isProcessing} />}
       </main>
 
-      <div className="p-4 pb-6 safe-bottom flex items-center justify-center gap-4">
+      <div className="p-4 pb-6 safe-bottom flex items-center justify-center gap-3">
         <button
           onClick={speakDaySummary}
           className="w-10 h-10 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-primary-light)] transition-colors press-scale"
+          title="Resumen por voz"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
           </svg>
         </button>
+        <button
+          onClick={() => { sounds.tap(); setShowFocus(true); }}
+          className="w-10 h-10 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-warning)] transition-colors press-scale"
+          title="Modo Focus"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+          </svg>
+        </button>
         <VoiceButton onResult={handleVoiceResult} isProcessing={isProcessing} />
+        <button
+          onClick={() => { sounds.tap(); setShowRetro(true); }}
+          className="w-10 h-10 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-success-light)] transition-colors press-scale"
+          title="Retrospectiva"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+          </svg>
+        </button>
       </div>
+
+      {/* Modals */}
+      {showFocus && (
+        <FocusMode tasks={tasks} onComplete={handleFocusComplete} onClose={() => setShowFocus(false)} />
+      )}
+      {showRetro && (
+        <Retrospective tasks={tasks} habits={habits} onClose={() => setShowRetro(false)} onReschedule={handleReschedule} />
+      )}
     </div>
   );
 }

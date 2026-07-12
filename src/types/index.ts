@@ -66,3 +66,11 @@ export interface AIResponse {
   agenda?: AgendaItem[];
   message?: string;
 }
+
+export interface VoiceNote {
+  id: string;
+  transcript: string;
+  summary?: string;
+  tags?: string[];
+  createdAt: string;
+}

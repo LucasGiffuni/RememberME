@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import VoiceButton from "@/components/VoiceButton";
 import TaskList from "@/components/TaskList";
 import DayAgenda from "@/components/DayAgenda";
@@ -9,21 +9,13 @@ import ChatInput from "@/components/ChatInput";
 import Header from "@/components/Header";
 import { useUserData } from "@/hooks/useUserData";
 import { useReminders } from "@/hooks/useReminders";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { CalendarEvent } from "@/types";
 
 export default function Home() {
   const { tasks, agenda, events, isLoading, updateTasks, updateAgenda, updateEvents } = useUserData();
   const [activeTab, setActiveTab] = useState<"tasks" | "agenda" | "calendar" | "chat">("tasks");
   const [isProcessing, setIsProcessing] = useState(false);
-  const { requestPermission } = useReminders(tasks, agenda);
-  const { subscribe } = usePushNotifications();
-
-  // Request permissions on mount
-  useEffect(() => {
-    requestPermission();
-    subscribe();
-  }, [requestPermission, subscribe]);
+  useReminders(tasks, agenda);
 
   const handleVoiceResult = async (transcript: string) => {
     setIsProcessing(true);

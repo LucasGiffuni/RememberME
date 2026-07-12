@@ -18,28 +18,53 @@ function urlBase64ToUint8Array(base64String: string) {
 export function usePushNotifications() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("");
 
   const checkSupport = useCallback(() => {
-    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    const hasServiceWorker = "serviceWorker" in navigator;
+    const hasPushManager = "PushManager" in window;
+    const hasNotification = "Notification" in window;
+    const supported = hasServiceWorker && hasPushManager && hasNotification;
     setIsSupported(supported);
+    if (!supported) {
+      const missing = [];
+      if (!hasServiceWorker) missing.push("ServiceWorker");
+      if (!hasPushManager) missing.push("PushManager");
+      if (!hasNotification) missing.push("Notification");
+      setError(`No soportado: falta ${missing.join(", ")}`);
+    }
     return supported;
   }, []);
 
-  const subscribe = useCallback(async () => {
-    if (!checkSupport()) return false;
+  const subscribe = useCallback(async (): Promise<boolean> => {
+    setError(null);
+    setStatus("Verificando soporte...");
+
+    if (!checkSupport()) {
+      setStatus("");
+      return false;
+    }
 
     try {
+      setStatus("Pidiendo permiso...");
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") return false;
+      if (permission !== "granted") {
+        setError(`Permiso denegado: ${permission}`);
+        setStatus("");
+        return false;
+      }
 
+      setStatus("Registrando service worker...");
       const registration = await navigator.serviceWorker.ready;
-      
+
+      setStatus("Suscribiendo a push...");
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
 
-      // Send subscription to server
+      setStatus("Guardando en servidor...");
       const response = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -48,14 +73,21 @@ export function usePushNotifications() {
 
       if (response.ok) {
         setIsSubscribed(true);
+        setStatus("Notificaciones activadas");
         return true;
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setError(`Error del servidor: ${data.error || response.status}`);
+        setStatus("");
+        return false;
       }
-      return false;
-    } catch (error) {
-      console.error("Push subscription error:", error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error desconocido";
+      setError(message);
+      setStatus("");
       return false;
     }
   }, [checkSupport]);
 
-  return { subscribe, isSubscribed, isSupported, checkSupport };
+  return { subscribe, isSubscribed, isSupported, checkSupport, error, status };
 }

@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { scheduleReminder } from "@/lib/qstash";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -129,6 +131,39 @@ Mensaje del usuario: "${message}"`;
     }
 
     const parsed = JSON.parse(text);
+
+    // Schedule reminders with QStash
+    const { userId } = await auth();
+    if (userId && process.env.QSTASH_TOKEN) {
+      // Schedule reminders for tasks with reminder field
+      if (parsed.tasks) {
+        for (const task of parsed.tasks) {
+          if (task.reminder && !task.completed) {
+            const reminderDate = new Date(task.reminder);
+            if (reminderDate > new Date()) {
+              await scheduleReminder(userId, "Recordatorio", task.title, reminderDate).catch(console.error);
+            }
+          }
+        }
+      }
+
+      // Schedule reminders for today's events (15 min before)
+      if (parsed.events) {
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        for (const event of parsed.events) {
+          if (event.date === todayStr || new Date(event.date) > today) {
+            const [h, m] = event.startTime.split(":").map(Number);
+            const eventDate = new Date(event.date);
+            eventDate.setHours(h, m - 15, 0); // 15 min before
+            if (eventDate > new Date()) {
+              await scheduleReminder(userId, "Evento en 15 min", event.title, eventDate).catch(console.error);
+            }
+          }
+        }
+      }
+    }
+
     return Response.json(parsed);
   } catch (error) {
     console.error("API Error:", error);

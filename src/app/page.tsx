@@ -10,6 +10,8 @@ import StatsView from "@/components/StatsView";
 import FocusMode from "@/components/FocusMode";
 import VoiceNotes from "@/components/VoiceNotes";
 import Retrospective from "@/components/Retrospective";
+import Settings from "@/components/Settings";
+import Onboarding from "@/components/Onboarding";
 import Header from "@/components/Header";
 import { useUserData } from "@/hooks/useUserData";
 import { useReminders } from "@/hooks/useReminders";
@@ -36,8 +38,16 @@ export default function Home() {
   const [isOrganizing, setIsOrganizing] = useState(false);
   const [showFocus, setShowFocus] = useState(false);
   const [showRetro, setShowRetro] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [notes, setNotes] = useState<VoiceNote[]>([]);
   useReminders(tasks, agenda);
+
+  // Check onboarding
+  useEffect(() => {
+    const onboarded = localStorage.getItem("rememberme-onboarded");
+    if (!onboarded) setShowOnboarding(true);
+  }, []);
 
   // Load habits and stats from localStorage
   useEffect(() => {
@@ -247,7 +257,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header />
+      <Header onSettingsClick={() => setShowSettings(true)} />
       
       <nav className="flex border-b border-[var(--color-border)] overflow-x-auto no-scrollbar">
         {tabs.map((tab) => (
@@ -321,6 +331,12 @@ export default function Home() {
       )}
       {showRetro && (
         <Retrospective tasks={tasks} habits={habits} onClose={() => setShowRetro(false)} onReschedule={handleReschedule} />
+      )}
+      {showSettings && (
+        <Settings onClose={() => setShowSettings(false)} />
+      )}
+      {showOnboarding && (
+        <Onboarding onComplete={() => setShowOnboarding(false)} />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { VoiceNote } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import { sounds } from "@/lib/sounds";
@@ -12,50 +12,15 @@ interface VoiceNotesProps {
 }
 
 export default function VoiceNotes({ notes, onAddNote, onDeleteNote }: VoiceNotesProps) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [noteInput, setNoteInput] = useState("");
+  const noteInputRef = useRef<HTMLInputElement>(null);
 
-  const startRecording = () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      sounds.error();
-      return;
-    }
-
-    sounds.startRecording();
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const rec = new SpeechRecognition();
-    rec.lang = "es-ES";
-    rec.interimResults = false;
-    rec.continuous = true;
-
-    rec.onresult = (event: SpeechRecognitionEvent) => {
-      const last = event.results.length - 1;
-      const transcript = event.results[last][0].transcript;
-      sounds.stopRecording();
-      onAddNote(transcript);
-      setIsRecording(false);
-    };
-
-    rec.onerror = () => {
-      sounds.error();
-      setIsRecording(false);
-    };
-
-    rec.onend = () => setIsRecording(false);
-
-    setRecognition(rec);
-    rec.start();
-    setIsRecording(true);
-  };
-
-  const stopRecording = () => {
-    if (recognition) {
-      recognition.stop();
-      setRecognition(null);
-    }
-    sounds.stopRecording();
-    setIsRecording(false);
+  const handleAddNote = () => {
+    if (!noteInput.trim()) return;
+    sounds.success();
+    onAddNote(noteInput.trim());
+    setNoteInput("");
   };
 
   const filteredNotes = searchQuery
@@ -80,34 +45,40 @@ export default function VoiceNotes({ notes, onAddNote, onDeleteNote }: VoiceNote
 
   return (
     <div className="space-y-4">
-      {/* Record button + search */}
-      <div className="flex gap-2">
+      {/* Add note input */}
+      <form onSubmit={(e) => { e.preventDefault(); handleAddNote(); }} className="flex gap-2">
+        <input
+          ref={noteInputRef}
+          type="text"
+          value={noteInput}
+          onChange={(e) => setNoteInput(e.target.value)}
+          placeholder="Dictá o escribí una nota rápida..."
+          enterKeyHint="send"
+          autoCorrect="on"
+          className="input flex-1"
+        />
+        <motion.button
+          type="submit"
+          disabled={!noteInput.trim()}
+          whileTap={{ scale: 0.9 }}
+          className="w-11 h-11 rounded-xl bg-[var(--color-primary)] glow-primary flex items-center justify-center flex-shrink-0 disabled:opacity-30"
+        >
+          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+        </motion.button>
+      </form>
+
+      {/* Search */}
+      {notes.length > 3 && (
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Buscar notas..."
-          className="input flex-1"
+          className="input"
         />
-        <motion.button
-          onClick={isRecording ? stopRecording : startRecording}
-          whileTap={{ scale: 0.9 }}
-          className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            isRecording
-              ? "bg-[var(--color-danger)] animate-recording"
-              : "bg-[var(--color-primary)] glow-primary"
-          }`}
-        >
-          {isRecording ? (
-            <div className="w-3.5 h-3.5 rounded-sm bg-white" />
-          ) : (
-            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-            </svg>
-          )}
-        </motion.button>
-      </div>
+      )}
 
       {/* Notes list */}
       {filteredNotes.length === 0 ? (

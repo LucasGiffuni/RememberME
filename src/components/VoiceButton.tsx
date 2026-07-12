@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { sounds } from "@/lib/sounds";
 
 interface VoiceButtonProps {
@@ -10,81 +10,46 @@ interface VoiceButtonProps {
 }
 
 export default function VoiceButton({ onResult, isProcessing }: VoiceButtonProps) {
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const startListening = () => {
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      sounds.error();
-      return;
+  // Auto-focus input when opened (triggers iOS keyboard with dictation mic)
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
+  }, [isOpen]);
 
-    sounds.startRecording();
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = "es-ES";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.continuous = true;
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const last = event.results.length - 1;
-      const transcript = event.results[last][0].transcript;
-      onResult(transcript);
-      stopListening();
-    };
-
-    recognition.onerror = () => {
-      sounds.error();
-      stopListening();
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
+  const handleOpen = () => {
+    sounds.tap();
+    setIsOpen(true);
   };
 
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-    }
-    sounds.stopRecording();
-    setIsListening(false);
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!input.trim() || isProcessing) return;
+    sounds.success();
+    onResult(input.trim());
+    setInput("");
+    setIsOpen(false);
   };
 
-  const handleClick = () => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
+  const handleClose = () => {
+    sounds.tap();
+    setInput("");
+    setIsOpen(false);
   };
 
   return (
-    <div className="relative flex items-center justify-center">
-      {/* Outer ring animation when listening */}
-      {isListening && (
-        <motion.div
-          className="absolute w-[72px] h-[72px] rounded-full border-2 border-[var(--color-danger)]"
-          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-        />
-      )}
-
+    <>
+      {/* Main button */}
       <motion.button
-        onClick={handleClick}
+        onClick={handleOpen}
         disabled={isProcessing}
         whileTap={{ scale: 0.9 }}
         className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
-          isListening
-            ? "bg-[var(--color-danger)] animate-recording"
-            : isProcessing
+          isProcessing
             ? "bg-[var(--color-surface-light)]"
             : "bg-[var(--color-primary)] glow-primary hover:bg-[var(--color-primary-light)]"
         }`}
@@ -95,24 +60,79 @@ export default function VoiceButton({ onResult, isProcessing }: VoiceButtonProps
             animate={{ rotate: 360 }}
             transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
           />
-        ) : isListening ? (
-          <div className="flex items-center gap-0.5">
-            {[0, 1, 2].map((i) => (
-              <motion.div
-                key={i}
-                className="w-1 bg-white rounded-full"
-                animate={{ height: [8, 20, 8] }}
-                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-              />
-            ))}
-          </div>
         ) : (
-          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
         )}
       </motion.button>
-    </div>
+
+      {/* Quick input overlay */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col justify-end"
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/60" onClick={handleClose} />
+            
+            {/* Input panel */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative glass border-t border-[var(--color-border)] p-4 pb-8 safe-bottom"
+            >
+              <div className="w-10 h-1 rounded-full bg-[var(--color-surface-light)] mx-auto mb-4" />
+              
+              <p className="text-xs text-[var(--color-text-muted)] text-center mb-3">
+                Escribí o usá el micrófono del teclado para dictar
+              </p>
+
+              <form onSubmit={handleSubmit} className="flex gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ej: Tengo que ir al super a comprar leche..."
+                  enterKeyHint="send"
+                  autoComplete="off"
+                  autoCorrect="on"
+                  className="input flex-1 !rounded-full !px-4 !py-3"
+                />
+                <motion.button
+                  type="submit"
+                  disabled={!input.trim() || isProcessing}
+                  whileTap={{ scale: 0.9 }}
+                  className="w-11 h-11 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center disabled:opacity-30 transition-opacity flex-shrink-0"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />
+                  </svg>
+                </motion.button>
+              </form>
+
+              {/* Quick suggestions */}
+              <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
+                {["Organizar mi día", "Lista del super", "Recordame a las..."].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => { setInput(suggestion); sounds.tap(); }}
+                    className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full bg-[var(--color-surface-hover)] text-[var(--color-text-muted)] border border-[var(--color-border)] press-scale"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

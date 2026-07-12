@@ -10,7 +10,10 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const qstash = new Client({ token: process.env.QSTASH_TOKEN || "" });
+    const qstash = new Client({ 
+      token: process.env.QSTASH_TOKEN || "",
+      baseUrl: "https://qstash.upstash.io",
+    });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://remember-me-pink-nine.vercel.app";
 
     // Create a schedule that runs every hour from 9am to 10pm (UTC-3 = 12 to 01 UTC)

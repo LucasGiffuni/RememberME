@@ -2,19 +2,17 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { Task, AgendaItem, CalendarEvent } from "@/types";
+import { Task, AgendaItem } from "@/types";
 
 interface UserData {
   tasks: Task[];
   agenda: AgendaItem[];
-  events: CalendarEvent[];
 }
 
 export function useUserData() {
   const { isSignedIn, isLoaded } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -30,11 +28,9 @@ export function useUserData() {
             const data: UserData = await response.json();
             setTasks(data.tasks || []);
             setAgenda(data.agenda || []);
-            setEvents(data.events || []);
             // Also update localStorage as cache
             localStorage.setItem("rememberme-tasks", JSON.stringify(data.tasks || []));
             localStorage.setItem("rememberme-agenda", JSON.stringify(data.agenda || []));
-            localStorage.setItem("rememberme-events", JSON.stringify(data.events || []));
           }
         } catch {
           // Fallback to localStorage
@@ -52,10 +48,8 @@ export function useUserData() {
   const loadFromLocalStorage = () => {
     const savedTasks = localStorage.getItem("rememberme-tasks");
     const savedAgenda = localStorage.getItem("rememberme-agenda");
-    const savedEvents = localStorage.getItem("rememberme-events");
     if (savedTasks) setTasks(JSON.parse(savedTasks));
     if (savedAgenda) setAgenda(JSON.parse(savedAgenda));
-    if (savedEvents) setEvents(JSON.parse(savedEvents));
   };
 
   // Debounced save to server
@@ -64,7 +58,6 @@ export function useUserData() {
       // Always save to localStorage immediately
       localStorage.setItem("rememberme-tasks", JSON.stringify(data.tasks));
       localStorage.setItem("rememberme-agenda", JSON.stringify(data.agenda));
-      localStorage.setItem("rememberme-events", JSON.stringify(data.events));
 
       if (!isSignedIn) return;
 
@@ -93,42 +86,29 @@ export function useUserData() {
     (newTasks: Task[] | ((prev: Task[]) => Task[])) => {
       setTasks((prev) => {
         const updated = typeof newTasks === "function" ? newTasks(prev) : newTasks;
-        saveToServer({ tasks: updated, agenda, events });
+        saveToServer({ tasks: updated, agenda });
         return updated;
       });
     },
-    [agenda, events, saveToServer]
+    [agenda, saveToServer]
   );
 
   const updateAgenda = useCallback(
     (newAgenda: AgendaItem[] | ((prev: AgendaItem[]) => AgendaItem[])) => {
       setAgenda((prev) => {
         const updated = typeof newAgenda === "function" ? newAgenda(prev) : newAgenda;
-        saveToServer({ tasks, agenda: updated, events });
+        saveToServer({ tasks, agenda: updated });
         return updated;
       });
     },
-    [tasks, events, saveToServer]
-  );
-
-  const updateEvents = useCallback(
-    (newEvents: CalendarEvent[] | ((prev: CalendarEvent[]) => CalendarEvent[])) => {
-      setEvents((prev) => {
-        const updated = typeof newEvents === "function" ? newEvents(prev) : newEvents;
-        saveToServer({ tasks, agenda, events: updated });
-        return updated;
-      });
-    },
-    [tasks, agenda, saveToServer]
+    [tasks, saveToServer]
   );
 
   return {
     tasks,
     agenda,
-    events,
     isLoading,
     updateTasks,
     updateAgenda,
-    updateEvents,
   };
 }

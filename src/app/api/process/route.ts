@@ -10,7 +10,6 @@ const SYSTEM_PROMPT = `Eres RememberME, un asistente personal inteligente en esp
 2. Crear listas (compras, pendientes, etc.)
 3. Organizar su día con una agenda
 4. Recordarle cosas importantes
-5. Crear citas y eventos en el calendario
 
 REGLAS:
 - Siempre responde en formato JSON válido
@@ -18,8 +17,7 @@ REGLAS:
 - Si menciona una lista de compras, organízala por categorías
 - Si es una tarea compleja, desglósala en subtareas
 - Si habla de su día o agenda, crea items de agenda con horarios sugeridos
-- Si menciona una cita, reunión, evento o algo con fecha/hora específica, créalo como evento de calendario
-- Mantén las tareas, agenda y eventos existentes del usuario y agrégales los nuevos
+- Mantén las tareas y agenda existentes del usuario y agrégales los nuevos
 
 FORMATO DE RESPUESTA (JSON):
 {
@@ -33,6 +31,8 @@ FORMATO DE RESPUESTA (JSON):
       "priority": "high|medium|low",
       "dueDate": "2024-01-01T00:00:00Z (opcional)",
       "reminder": "2024-01-01T09:00:00Z (opcional)",
+      "deadline": "before:14:00 | between:16:00-17:00 | after:09:00 (formato para restricciones horarias)",
+      "estimatedMinutes": 30,
       "createdAt": "2024-01-01T00:00:00Z"
     }
   ],
@@ -46,32 +46,21 @@ FORMATO DE RESPUESTA (JSON):
       "completed": false
     }
   ],
-  "events": [
-    {
-      "id": "event-timestamp",
-      "title": "Título del evento",
-      "description": "Descripción opcional",
-      "date": "2024-01-15",
-      "startTime": "09:00",
-      "endTime": "10:00",
-      "recurring": "none|daily|weekly|monthly",
-      "createdAt": "2024-01-01T00:00:00Z"
-    }
-  ],
   "message": "Mensaje opcional para el usuario"
 }
 
 IMPORTANTE: 
-- Genera IDs únicos usando el formato "task-", "agenda-", "event-" seguido de un timestamp numérico
+- Genera IDs únicos usando el formato "task-", "agenda-" seguido de un timestamp numérico
 - Si el usuario tiene datos existentes, inclúyelos en la respuesta junto con los nuevos
 - Prioriza la claridad y la organización
-- Si el usuario dice algo como "tengo cita con el dentista el martes a las 3", crea un evento de calendario
+- Si el usuario menciona un horario ("antes de las 2", "entre 4 y 5"), usa el campo deadline con formato: "before:HH:MM", "between:HH:MM-HH:MM", "after:HH:MM"
+- Si el usuario dice algo como "tengo cita a las 3", crea una tarea con deadline "between:15:00-16:00"
 - Si el usuario dice "recuérdame mañana a las 8 que tengo que...", crea un item de agenda con reminder`;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, tasks = [], agenda = [], events = [] } = body;
+    const { message, tasks = [], agenda = [] } = body;
 
     if (!GEMINI_API_KEY) {
       // Fallback: create a simple task without AI
@@ -87,7 +76,6 @@ export async function POST(request: NextRequest) {
       return Response.json({
         tasks: [...tasks, newTask],
         agenda,
-        events,
         message: "Tarea agregada (configura GEMINI_API_KEY para respuestas inteligentes)",
       });
     }
@@ -95,7 +83,6 @@ export async function POST(request: NextRequest) {
     const userContext = `
 Tareas actuales del usuario: ${JSON.stringify(tasks)}
 Agenda actual: ${JSON.stringify(agenda)}
-Eventos de calendario actuales: ${JSON.stringify(events)}
 Fecha y hora actual: ${new Date().toLocaleString("es-ES", { timeZone: "America/Argentina/Buenos_Aires" })}
 
 Mensaje del usuario: "${message}"`;
@@ -146,29 +133,13 @@ Mensaje del usuario: "${message}"`;
           }
         }
       }
-
-      // Schedule reminders for today's events (15 min before)
-      if (parsed.events) {
-        const today = new Date();
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-        for (const event of parsed.events) {
-          if (event.date === todayStr || new Date(event.date) > today) {
-            const [h, m] = event.startTime.split(":").map(Number);
-            const eventDate = new Date(event.date);
-            eventDate.setHours(h, m - 15, 0); // 15 min before
-            if (eventDate > new Date()) {
-              await scheduleReminder(userId, "Evento en 15 min", event.title, eventDate).catch(console.error);
-            }
-          }
-        }
-      }
     }
 
     return Response.json(parsed);
   } catch (error) {
     console.error("API Error:", error);
     // Fallback
-    const body = await request.clone().json().catch(() => ({ message: "", tasks: [], agenda: [], events: [] }));
+    const body = await request.clone().json().catch(() => ({ message: "", tasks: [], agenda: [] }));
     const newTask = {
       id: `task-${Date.now()}`,
       title: body.message || "Nueva tarea",
@@ -181,7 +152,6 @@ Mensaje del usuario: "${message}"`;
     return Response.json({
       tasks: [...(body.tasks || []), newTask],
       agenda: body.agenda || [],
-      events: body.events || [],
       message: "Error al procesar. Tarea agregada de forma simple.",
     });
   }

@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     const qstash = new Client({ 
       token: process.env.QSTASH_TOKEN || "",
-      baseUrl: "https://qstash.upstash.io",
+      baseUrl: "https://qstash-us-east-1.upstash.io",
     });
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://remember-me-pink-nine.vercel.app";
 

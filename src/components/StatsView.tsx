@@ -1,6 +1,7 @@
 "use client";
 
 import { UserStats, Task, Habit } from "@/types";
+import { motion } from "framer-motion";
 
 interface StatsViewProps {
   stats: UserStats;
@@ -37,106 +38,123 @@ export default function StatsView({ stats, tasks, habits }: StatsViewProps) {
   const nextLevel = getNextLevel(stats.points);
   const progress = nextLevel ? ((stats.points - currentLevel.minPoints) / (nextLevel.minPoints - currentLevel.minPoints)) * 100 : 100;
 
-  const completedToday = tasks.filter((t) => t.completed).length;
-  const totalToday = tasks.length;
-
   const todayStr = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
-  const habitsCompletedToday = habits.filter((h) => h.completedDates.includes(todayStr)).length;
-  const habitsTotalToday = habits.length;
+  const completedToday = tasks.filter((t) => t.completed).length;
+  const habitsToday = habits.filter((h) => h.completedDates.includes(todayStr)).length;
 
   const dayLabels = ["L", "M", "X", "J", "V", "S", "D"];
   const maxWeekly = Math.max(...stats.weeklyCompleted, 1);
 
   return (
-    <div className="space-y-4">
-      {/* Level card */}
-      <div className="bg-[var(--color-surface)] rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <p className="text-xs text-[var(--color-text-muted)]">Nivel {currentLevel.level}</p>
-            <p className="text-lg font-bold text-[var(--color-text)]">{currentLevel.name}</p>
+    <div className="space-y-3">
+      {/* Level */}
+      <motion.div 
+        className="card p-5 relative overflow-hidden"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-primary-glow)] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider">Nivel {currentLevel.level}</p>
+              <p className="text-xl font-bold text-[var(--color-text)] mt-0.5">{currentLevel.name}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-3xl font-bold text-[var(--color-primary-light)]">{stats.points}</p>
+              <p className="text-xs text-[var(--color-text-muted)]">puntos</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-[var(--color-primary-light)]">{stats.points}</p>
-            <p className="text-xs text-[var(--color-text-muted)]">puntos</p>
-          </div>
+          {nextLevel && (
+            <div>
+              <div className="h-2 bg-[var(--color-surface-hover)] rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-light)] rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.8, ease: "easeOut" }}
+                />
+              </div>
+              <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
+                {nextLevel.minPoints - stats.points} pts para <span className="text-[var(--color-primary-light)]">{nextLevel.name}</span>
+              </p>
+            </div>
+          )}
         </div>
-        {nextLevel && (
-          <div>
-            <div className="flex justify-between text-xs text-[var(--color-text-muted)] mb-1">
-              <span>{currentLevel.name}</span>
-              <span>{nextLevel.name}</span>
-            </div>
-            <div className="h-2 bg-[var(--color-surface-light)] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[var(--color-primary)] rounded-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1 text-right">
-              {nextLevel.minPoints - stats.points} pts para el siguiente nivel
-            </p>
-          </div>
-        )}
-      </div>
+      </motion.div>
 
-      {/* Streak */}
+      {/* Streaks */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-[var(--color-surface)] rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-[var(--color-warning)]">🔥 {stats.currentStreak}</p>
+        <motion.div 
+          className="card p-4 text-center"
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <p className="text-3xl font-bold text-[var(--color-warning)]">{stats.currentStreak}</p>
           <p className="text-xs text-[var(--color-text-muted)] mt-1">Racha actual</p>
-        </div>
-        <div className="bg-[var(--color-surface)] rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-[var(--color-primary-light)]">{stats.longestStreak}</p>
+        </motion.div>
+        <motion.div 
+          className="card p-4 text-center"
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <p className="text-3xl font-bold text-[var(--color-primary-light)]">{stats.longestStreak}</p>
           <p className="text-xs text-[var(--color-text-muted)] mt-1">Mejor racha</p>
-        </div>
+        </motion.div>
       </div>
 
-      {/* Today's progress */}
-      <div className="bg-[var(--color-surface)] rounded-xl p-3">
-        <p className="text-xs text-[var(--color-text-muted)] mb-2">Progreso de hoy</p>
-        <div className="flex justify-between items-center">
+      {/* Today */}
+      <motion.div 
+        className="card p-4"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-3">Hoy</p>
+        <div className="grid grid-cols-3 gap-3 text-center">
           <div>
-            <p className="text-sm text-[var(--color-text)]">Tareas: {completedToday}/{totalToday}</p>
-            <p className="text-sm text-[var(--color-text)]">Hábitos: {habitsCompletedToday}/{habitsTotalToday}</p>
+            <p className="text-2xl font-bold text-[var(--color-success)]">{completedToday}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Tareas</p>
           </div>
-          <div className="text-3xl font-bold text-[var(--color-success)]">
-            {totalToday + habitsTotalToday > 0
-              ? Math.round(((completedToday + habitsCompletedToday) / (totalToday + habitsTotalToday)) * 100)
-              : 0}%
+          <div>
+            <p className="text-2xl font-bold text-[var(--color-primary-light)]">{habitsToday}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Hábitos</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-[var(--color-warning)]">{completedToday * 5 + habitsToday * 10}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Pts hoy</p>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Weekly chart */}
-      <div className="bg-[var(--color-surface)] rounded-xl p-3">
-        <p className="text-xs text-[var(--color-text-muted)] mb-3">Esta semana</p>
-        <div className="flex items-end justify-between gap-2 h-24">
+      <motion.div 
+        className="card p-4"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
+        <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Esta semana</p>
+        <div className="flex items-end justify-between gap-2 h-20">
           {stats.weeklyCompleted.map((count, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div
-                className="w-full rounded-t-sm bg-[var(--color-primary)] transition-all duration-300"
-                style={{ height: `${(count / maxWeekly) * 100}%`, minHeight: count > 0 ? "4px" : "0" }}
+            <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+              <motion.div
+                className="w-full rounded-md bg-[var(--color-primary)]"
+                initial={{ height: 0 }}
+                animate={{ height: `${Math.max((count / maxWeekly) * 100, count > 0 ? 8 : 0)}%` }}
+                transition={{ duration: 0.5, delay: 0.3 + i * 0.05 }}
+                style={{ minHeight: count > 0 ? "4px" : "0" }}
               />
               <span className="text-xs text-[var(--color-text-muted)]">{dayLabels[i]}</span>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Points breakdown */}
-      <div className="bg-[var(--color-surface)] rounded-xl p-3">
-        <p className="text-xs text-[var(--color-text-muted)] mb-2">Como ganar puntos</p>
-        <div className="space-y-1 text-xs text-[var(--color-text)]">
-          <p>+5 pts por cada tarea completada</p>
-          <p>+10 pts por cada hábito diario</p>
-          <p>+20 pts bonus por completar todo el día</p>
-          <p>+5 pts extra por cada día de racha</p>
-        </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

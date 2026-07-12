@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { motion } from "framer-motion";
+import { sounds } from "@/lib/sounds";
 
 interface VoiceButtonProps {
   onResult: (transcript: string) => void;
@@ -13,9 +15,11 @@ export default function VoiceButton({ onResult, isProcessing }: VoiceButtonProps
 
   const startListening = () => {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
-      alert("Tu navegador no soporta reconocimiento de voz");
+      sounds.error();
       return;
     }
+
+    sounds.startRecording();
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
@@ -32,6 +36,7 @@ export default function VoiceButton({ onResult, isProcessing }: VoiceButtonProps
     };
 
     recognition.onerror = () => {
+      sounds.error();
       stopListening();
     };
 
@@ -49,6 +54,7 @@ export default function VoiceButton({ onResult, isProcessing }: VoiceButtonProps
       recognitionRef.current.stop();
       recognitionRef.current = null;
     }
+    sounds.stopRecording();
     setIsListening(false);
   };
 
@@ -61,33 +67,52 @@ export default function VoiceButton({ onResult, isProcessing }: VoiceButtonProps
   };
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center justify-center">
+      {/* Outer ring animation when listening */}
       {isListening && (
-        <div className="absolute inset-0 rounded-full bg-[var(--color-primary)] animate-pulse-ring" />
+        <motion.div
+          className="absolute w-[72px] h-[72px] rounded-full border-2 border-[var(--color-danger)]"
+          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        />
       )}
-      <button
+
+      <motion.button
         onClick={handleClick}
         disabled={isProcessing}
-        className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-all ${
+        whileTap={{ scale: 0.9 }}
+        className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
           isListening
-            ? "bg-[var(--color-danger)] scale-110"
+            ? "bg-[var(--color-danger)] animate-recording"
             : isProcessing
-            ? "bg-[var(--color-surface-light)] animate-pulse"
-            : "bg-[var(--color-primary)] hover:bg-[var(--color-primary-light)] active:scale-95"
+            ? "bg-[var(--color-surface-light)]"
+            : "bg-[var(--color-primary)] glow-primary hover:bg-[var(--color-primary-light)]"
         }`}
       >
         {isProcessing ? (
-          <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+          <motion.div
+            className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+          />
+        ) : isListening ? (
+          <div className="flex items-center gap-0.5">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="w-1 bg-white rounded-full"
+                animate={{ height: [8, 20, 8] }}
+                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+              />
+            ))}
+          </div>
         ) : (
-          <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
             <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
           </svg>
         )}
-      </button>
+      </motion.button>
     </div>
   );
 }
